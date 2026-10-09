@@ -1,0 +1,93 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>Unity.InputSystem</AssemblyName>
+    <DefineConstants>UNITY_STANDALONE_OSX;UNITY_STANDALONE;UNITY_64;ENABLE_INPUT_SYSTEM;ENABLE_MONO;ENABLE_VR;UNITY_INPUT_SYSTEM_ENABLE_VR;UNITY_INPUT_SYSTEM_ENABLE_XR;UNITY_INPUT_SYSTEM_ENABLE_PHYSICS;UNITY_INPUT_SYSTEM_ENABLE_PHYSICS2D;UNITY_INPUT_SYSTEM_ENABLE_UI;HAS_SET_LOCAL_POSITION_AND_ROTATION;UNITY_INPUT_SYSTEM_PROJECT_WIDE_ACTIONS;UNITY_INPUT_SYSTEM_INPUT_ACTIONS_EDITOR_AUTO_SAVE_ON_FOCUS_LOST;UNITY_2022;UNITY_2022_3;UNITY_2022_3_62;UNITY_2017_1_OR_NEWER;UNITY_2017_2_OR_NEWER;UNITY_2017_3_OR_NEWER;UNITY_2017_4_OR_NEWER;UNITY_2018_1_OR_NEWER;UNITY_2018_2_OR_NEWER;UNITY_2018_3_OR_NEWER;UNITY_2018_4_OR_NEWER;UNITY_2019_1_OR_NEWER;UNITY_2019_2_OR_NEWER;UNITY_2019_3_OR_NEWER;UNITY_2019_4_OR_NEWER;UNITY_2020_1_OR_NEWER;UNITY_2020_2_OR_NEWER;UNITY_2020_3_OR_NEWER;UNITY_2020_4_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2021_2_OR_NEWER;UNITY_2021_3_OR_NEWER;UNITY_2021_4_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_2022_2_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_5_3_OR_NEWER;UNITY_5_4_OR_NEWER;UNITY_5_5_OR_NEWER;UNITY_5_6_OR_NEWER</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoStdLib>true</NoStdLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>disable</Nullable>
+    <LangVersion>9</LangVersion>
+    <Optimize>true</Optimize>
+    <DebugType>none</DebugType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0618;CS0649;CS0414;CS0067;CS0169;CS1030;CS0108;CS0162;CS0219</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(DepsDir)inputsystem/InputSystem/**/*.cs" Exclude="$(DepsDir)inputsystem/InputSystem/Plugins/InputForUI/**" />
+    <Compile Include="UnitySourceGeneratedAssemblyMonoScriptTypes_v1.cs" />
+    <Reference Include="System"><HintPath>$(UnityBCL)/System.dll</HintPath></Reference>
+    <Reference Include="System.Core"><HintPath>$(UnityBCL)/System.Core.dll</HintPath></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(UnityMacManaged)/UnityEngine.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AIModule"><HintPath>$(UnityMacManaged)/UnityEngine.AIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ARModule"><HintPath>$(UnityMacManaged)/UnityEngine.ARModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AccessibilityModule"><HintPath>$(UnityMacManaged)/UnityEngine.AccessibilityModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AndroidJNIModule"><HintPath>$(UnityMacManaged)/UnityEngine.AndroidJNIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AnimationModule"><HintPath>$(UnityMacManaged)/UnityEngine.AnimationModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AssetBundleModule"><HintPath>$(UnityMacManaged)/UnityEngine.AssetBundleModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(UnityMacManaged)/UnityEngine.AudioModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ClothModule"><HintPath>$(UnityMacManaged)/UnityEngine.ClothModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ClusterInputModule"><HintPath>$(UnityMacManaged)/UnityEngine.ClusterInputModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ClusterRendererModule"><HintPath>$(UnityMacManaged)/UnityEngine.ClusterRendererModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ContentLoadModule"><HintPath>$(UnityMacManaged)/UnityEngine.ContentLoadModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(UnityMacManaged)/UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CrashReportingModule"><HintPath>$(UnityMacManaged)/UnityEngine.CrashReportingModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.DSPGraphModule"><HintPath>$(UnityMacManaged)/UnityEngine.DSPGraphModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.DirectorModule"><HintPath>$(UnityMacManaged)/UnityEngine.DirectorModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.GIModule"><HintPath>$(UnityMacManaged)/UnityEngine.GIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.GameCenterModule"><HintPath>$(UnityMacManaged)/UnityEngine.GameCenterModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.GridModule"><HintPath>$(UnityMacManaged)/UnityEngine.GridModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.HotReloadModule"><HintPath>$(UnityMacManaged)/UnityEngine.HotReloadModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(UnityMacManaged)/UnityEngine.IMGUIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(UnityMacManaged)/UnityEngine.ImageConversionModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(UnityMacManaged)/UnityEngine.InputLegacyModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.InputModule"><HintPath>$(UnityMacManaged)/UnityEngine.InputModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule"><HintPath>$(UnityMacManaged)/UnityEngine.JSONSerializeModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.LocalizationModule"><HintPath>$(UnityMacManaged)/UnityEngine.LocalizationModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(UnityMacManaged)/UnityEngine.ParticleSystemModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.PerformanceReportingModule"><HintPath>$(UnityMacManaged)/UnityEngine.PerformanceReportingModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.Physics2DModule"><HintPath>$(UnityMacManaged)/UnityEngine.Physics2DModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(UnityMacManaged)/UnityEngine.PhysicsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ProfilerModule"><HintPath>$(UnityMacManaged)/UnityEngine.ProfilerModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.PropertiesModule"><HintPath>$(UnityMacManaged)/UnityEngine.PropertiesModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule"><HintPath>$(UnityMacManaged)/UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule"><HintPath>$(UnityMacManaged)/UnityEngine.ScreenCaptureModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule"><HintPath>$(UnityMacManaged)/UnityEngine.SharedInternalsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.SpriteMaskModule"><HintPath>$(UnityMacManaged)/UnityEngine.SpriteMaskModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.SpriteShapeModule"><HintPath>$(UnityMacManaged)/UnityEngine.SpriteShapeModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.StreamingModule"><HintPath>$(UnityMacManaged)/UnityEngine.StreamingModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.SubstanceModule"><HintPath>$(UnityMacManaged)/UnityEngine.SubstanceModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.SubsystemsModule"><HintPath>$(UnityMacManaged)/UnityEngine.SubsystemsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TLSModule"><HintPath>$(UnityMacManaged)/UnityEngine.TLSModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TerrainModule"><HintPath>$(UnityMacManaged)/UnityEngine.TerrainModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TerrainPhysicsModule"><HintPath>$(UnityMacManaged)/UnityEngine.TerrainPhysicsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TextCoreFontEngineModule"><HintPath>$(UnityMacManaged)/UnityEngine.TextCoreFontEngineModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TextCoreTextEngineModule"><HintPath>$(UnityMacManaged)/UnityEngine.TextCoreTextEngineModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(UnityMacManaged)/UnityEngine.TextRenderingModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.TilemapModule"><HintPath>$(UnityMacManaged)/UnityEngine.TilemapModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameManaged)/UnityEngine.UI.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UIElementsModule"><HintPath>$(UnityMacManaged)/UnityEngine.UIElementsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>$(UnityMacManaged)/UnityEngine.UIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UmbraModule"><HintPath>$(UnityMacManaged)/UnityEngine.UmbraModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsCommonModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityAnalyticsCommonModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityAnalyticsModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityConnectModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityConnectModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityCurlModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityCurlModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityTestProtocolModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityTestProtocolModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAssetBundleModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityWebRequestAssetBundleModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityWebRequestAudioModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityWebRequestModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityWebRequestTextureModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule"><HintPath>$(UnityMacManaged)/UnityEngine.UnityWebRequestWWWModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.VFXModule"><HintPath>$(UnityMacManaged)/UnityEngine.VFXModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.VRModule"><HintPath>$(UnityMacManaged)/UnityEngine.VRModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.VehiclesModule"><HintPath>$(UnityMacManaged)/UnityEngine.VehiclesModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.VideoModule"><HintPath>$(UnityMacManaged)/UnityEngine.VideoModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.VirtualTexturingModule"><HintPath>$(UnityMacManaged)/UnityEngine.VirtualTexturingModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.WindModule"><HintPath>$(UnityMacManaged)/UnityEngine.WindModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.XRModule"><HintPath>$(UnityMacManaged)/UnityEngine.XRModule.dll</HintPath></Reference>
+    <Reference Include="mscorlib"><HintPath>$(UnityBCL)/mscorlib.dll</HintPath></Reference>
+    <Reference Include="netstandard"><HintPath>$(UnityBCL)/Facades/netstandard.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

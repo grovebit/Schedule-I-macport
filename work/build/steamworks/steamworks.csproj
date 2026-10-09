@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>com.rlabrecque.steamworks.net</AssemblyName>
+    <DefineConstants>UNITY_STANDALONE_OSX;UNITY_STANDALONE;UNITY_64;UNITY_5_3_OR_NEWER;UNITY_2017_1_OR_NEWER;UNITY_2022_3_OR_NEWER</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoStdLib>true</NoStdLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>disable</Nullable>
+    <LangVersion>9</LangVersion>
+    <Optimize>true</Optimize>
+    <DebugType>none</DebugType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0618;CS0649;CS0414;CS1030</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(DepsDir)steamworks.net/com.rlabrecque.steamworks.net/Runtime/**/*.cs" />
+    <Compile Include="UnitySourceGeneratedAssemblyMonoScriptTypes_v1.cs" />
+    <Reference Include="mscorlib"><HintPath>$(UnityBCL)/mscorlib.dll</HintPath></Reference>
+    <Reference Include="System"><HintPath>$(UnityBCL)/System.dll</HintPath></Reference>
+    <Reference Include="netstandard"><HintPath>$(UnityBCL)/Facades/netstandard.dll</HintPath></Reference>
+    <Reference Include="System.Core"><HintPath>$(UnityBCL)/System.Core.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(UnityMacManaged)/UnityEngine.CoreModule.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

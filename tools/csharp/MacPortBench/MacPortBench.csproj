@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>MacPortBench</AssemblyName>
+    <NoStdLib>true</NoStdLib>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <DebugType>none</DebugType>
+    <LangVersion>9</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="mscorlib"><HintPath>$(UnityBCL)/mscorlib.dll</HintPath></Reference>
+    <Reference Include="System"><HintPath>$(UnityBCL)/System.dll</HintPath></Reference>
+    <Reference Include="System.Core"><HintPath>$(UnityBCL)/System.Core.dll</HintPath></Reference>
+    <Reference Include="netstandard"><HintPath>$(UnityBCL)/Facades/netstandard.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(UnityMacManaged)/UnityEngine.CoreModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.AIModule"><HintPath>$(UnityMacManaged)/UnityEngine.AIModule.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule"><HintPath>$(UnityMacManaged)/UnityEngine.ScreenCaptureModule.dll</HintPath></Reference>
+    <Reference Include="Unity.Burst"><HintPath>$(GameManaged)/Unity.Burst.dll</HintPath></Reference>
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManaged)/Assembly-CSharp.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

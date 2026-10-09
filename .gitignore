@@ -1,0 +1,29 @@
+# Toolchains, Unity's macOS player and the package sources, downloaded by build.sh (pins in tools/py/build.py)
+/deps/
+# Downloads of the older manual setup
+/downloads/
+
+# The assembled app contains the game's files and Unity's player: never commit or share it
+/build/
+
+# Generated or derived from the game: converted assets, patched/decompiled game code, IDA databases,
+# extracted icon. Only the project files for the rebuilt libraries are source.
+/work/*
+!/work/build/
+/work/build/**/obj/
+/work/build/**/bin/
+/work/build/**/out/
+# Unity's MonoScript tables of the rebuilt libraries: generated from the game's DLLs by build.sh
+/work/build/*/UnitySourceGeneratedAssemblyMonoScriptTypes_v1.cs
+
+# Tool build outputs and environments
+/tools/venv/
+/tools/dotnet-tools/
+/tools/dxbc2metal/build*/
+/tools/mtlcheck/*.dylib
+/tools/csharp/**/obj/
+/tools/csharp/**/bin/
+/tools/csharp/**/out/
+__pycache__/
+*.pyc
+.DS_Store

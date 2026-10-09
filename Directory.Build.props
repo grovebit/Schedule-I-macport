@@ -1,0 +1,13 @@
+<Project>
+  <!-- Paths shared by the C# projects. deps/ is filled by ./build.sh; GameManaged (the game's
+       "Schedule I_Data/Managed" folder) is passed in by build.sh as -p:GameManaged=... -->
+  <PropertyGroup>
+    <DepsDir>$(MSBuildThisFileDirectory)deps/</DepsDir>
+    <UnityBCL>$(DepsDir)unity-mono/lib/mono/unityjit-macos</UnityBCL>
+    <UnityMacManaged>$(DepsDir)unity-mac-support/Variations/mono/Managed</UnityMacManaged>
+    <!-- Outputs independent of the git commit (the SDK would add its hash to the informational version, and then
+         every commit would change ilpatch.dll and trigger a new shader conversion) -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <EnableSourceLink>false</EnableSourceLink>
+  </PropertyGroup>
+</Project>
