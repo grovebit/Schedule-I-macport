@@ -215,11 +215,12 @@ def main():
     if args.bench:
         install_bench(data_dst)
 
-    # --- native plugins
-    clone_tree(STEAM_BUNDLE, os.path.join(contents, 'PlugIns/steam_api.bundle'))
+    # --- native plugins (Burst compiles while the rest is assembled and read ahead for codesign)
+    burst = None
     if not args.no_burst:
         from burst_aot import compile_burst
-        clone(compile_burst(data_dst), os.path.join(contents, 'PlugIns/lib_burst_generated.bundle'))
+        burst = ThreadPoolExecutor(1).submit(compile_burst, data_dst)
+    clone_tree(STEAM_BUNDLE, os.path.join(contents, 'PlugIns/steam_api.bundle'))
     with open(os.path.join(contents, 'MacOS/steam_appid.txt'), 'w') as f:
         f.write(STEAM_APP_ID)
 
@@ -254,8 +255,11 @@ def main():
         f.write('APPL????')
 
     if not args.no_sign:
-        # ad-hoc signature (required on Apple Silicon once Info.plist/bundle contents changed)
         read_ahead(app)
+    if burst:
+        clone(burst.result(), os.path.join(contents, 'PlugIns/lib_burst_generated.bundle'))
+    if not args.no_sign:
+        # ad-hoc signature (required on Apple Silicon once Info.plist/bundle contents changed)
         subprocess.run(['codesign', '--force', '--deep', '--sign', '-', app], check=True)
     print('built', app)
 

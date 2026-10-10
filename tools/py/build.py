@@ -46,6 +46,7 @@ STEAM_APP_ID, STEAM_DEPOT_ID = '3164500', '3164501'
 
 CS_PROJECTS = ('tools/csharp/monoscripttypes', 'tools/csharp/MacPortCompat', 'tools/csharp/MacPortRuntime',
                'tools/csharp/MacPortBench', 'tools/csharp/ilpatch', 'work/build/steamworks', 'work/build/inputsystem')
+BENCH_PROJECT = 'tools/csharp/MacPortBench'  # only built for --bench
 # Libraries rebuilt for macOS from source -> the game's copy, whose Unity-generated MonoScript table they must carry
 MONOSCRIPT_TABLES = {'work/build/steamworks': 'com.rlabrecque.steamworks.net.dll',
                      'work/build/inputsystem': 'Unity.InputSystem.dll'}
@@ -53,13 +54,14 @@ MONOSCRIPT_TABLES = {'work/build/steamworks': 'com.rlabrecque.steamworks.net.dll
 CONVERTED = ('globalgamemanagers.assets', 'resources.assets', 'sharedassets0.assets', 'sharedassets1.assets',
              'sharedassets2.assets', 'Resources/unity_builtin_extra')
 CONVERTER = ('tools/py/port_shaders.py', 'tools/py/patch_shaders.py', 'tools/py/convert.py', 'tools/py/compute.py',
-             'tools/py/ushader.py', 'tools/py/dxbc2metal.py', 'tools/py/mtlcheck.py', 'tools/py/patch_settings.py',
+             'tools/py/ushader.py', 'tools/py/dxbc2metal.py', 'tools/py/mtlcheck.py',
              'tools/dxbc2metal/build/libdxbc2metal.dylib', 'tools/mtlcheck/libmtlcheck.dylib')
 # What assemble_app.py uses besides the game folder, deps/ and work/managed: skipping an unchanged app saves
 # re-signing it (minutes for the 6 GB bundle)
 APP_INPUTS = ('tools/py/assemble_app.py', 'tools/py/burst_aot.py', 'tools/py/paths.py', 'work/patched/.stamp',
               'work/icon/ScheduleI.icns', 'work/build/steamworks/out/com.rlabrecque.steamworks.net.dll',
-              'tools/csharp/MacPortRuntime/out/MacPortRuntime.dll', 'tools/csharp/MacPortBench/out/MacPortBench.dll')
+              'tools/csharp/MacPortRuntime/out/MacPortRuntime.dll')
+BENCH_APP_INPUTS = ('tools/csharp/MacPortBench/out/MacPortBench.dll',)
 
 IL2CPP_HELP = '''%s is the IL2CPP build (Steam's default branch), but the port needs the Mono build.
 In Steam: Schedule I > Properties > Game Versions & Betas > select "alternate", let it update, then run ./build.sh again.'''
@@ -150,8 +152,36 @@ def file_digest(path, algo='sha256'):
     return h.hexdigest()
 
 
+def file_id(path):
+    """Size and modification time, which tell whether a game file changed (Steam rewrites the files an update
+    changes); hashing the 600 MB the shader converter reads took most of a build with nothing to do."""
+    if not os.path.exists(path):
+        return '-'
+    st = os.stat(path)
+    return '%d %d' % (st.st_size, st.st_mtime_ns)
+
+
+def read_stamps(path):
+    """{name: fingerprint} from a stamp file of "name fingerprint" lines."""
+    return dict(line.split(' ', 1) for line in (read_text(path) or '').splitlines() if ' ' in line)
+
+
+def write_stamps(path, stamps):
+    write_text(path, ''.join('%s %s\n' % item for item in sorted(stamps.items())))
+
+
 def up_to_date(target, sources):
     return os.path.exists(target) and all(os.path.getmtime(target) >= os.path.getmtime(s) for s in sources)
+
+
+def source_files(*dirs):
+    """The files under dirs, without CMake build folders."""
+    files = []
+    for d in dirs:
+        for root, subdirs, names in os.walk(d):
+            subdirs[:] = [s for s in subdirs if not s.startswith('build')]
+            files += [os.path.join(root, n) for n in names]
+    return files
 
 
 def tool(name):
@@ -489,41 +519,51 @@ def build_tools():
         shutil.rmtree(build_dir)  # configured by another CMake, or before this folder was moved
     if not os.path.exists(os.path.join(build_dir, 'CMakeCache.txt')):
         run([cmake, '-S', os.path.join(TOOLS, 'dxbc2metal'), '-B', build_dir, '-DCMAKE_BUILD_TYPE=Release'], quiet=True)
-    run([cmake, '--build', build_dir, '-j', str(os.cpu_count() or 4)], quiet=True)
+    # (make takes a while to find nothing to do: it checks every object and header)
+    if not up_to_date(os.path.join(build_dir, 'libdxbc2metal.dylib'),
+                      source_files(os.path.join(TOOLS, 'dxbc2metal'), os.path.join(TOOLS, 'hlslcc'))):
+        run([cmake, '--build', build_dir, '-j', str(os.cpu_count() or 4)], quiet=True)
 
 
-def projects_inputs(managed):
-    """Fingerprint of what the C# projects are built from: their files, the downloads they use and the game's
-    assemblies (by size and date)."""
+def project_inputs(project, managed):
+    """Fingerprint of what a C# project is built from: the downloads, its files and the game assemblies it uses (by
+    size and date), so that a game update only rebuilds the projects using what changed."""
     h = hashlib.sha256()
     for d in (os.path.dirname(paths.DOTNET), paths.UNITY_MONO, paths.UNITY_MAC, paths.STEAMWORKS_NET, paths.INPUT_SYSTEM):
         h.update((read_text(os.path.join(d, '.dep')) or '-').encode())
     files = [os.path.join(ROOT, 'Directory.Build.props')]
-    for project in CS_PROJECTS:
-        for root, dirs, names in os.walk(os.path.join(ROOT, project)):
-            dirs[:] = sorted(d for d in dirs if d not in ('obj', 'bin', 'out'))
+    # a rebuilt library also depends on the tool that writes its MonoScript table
+    for d in (project, 'tools/csharp/monoscripttypes') if project in MONOSCRIPT_TABLES else (project,):
+        for root, dirs, names in os.walk(os.path.join(ROOT, d)):
+            dirs[:] = sorted(x for x in dirs if x not in ('obj', 'bin', 'out'))
             files += [os.path.join(root, n) for n in sorted(names) if n != 'UnitySourceGeneratedAssemblyMonoScriptTypes_v1.cs']
     for p in files:
         h.update(('%s %s\n' % (os.path.relpath(p, ROOT), file_digest(p))).encode())
-    for name in sorted(os.listdir(managed)):
-        st = os.stat(os.path.join(managed, name))
-        h.update(('%s %d %d\n' % (name, st.st_size, st.st_mtime_ns)).encode())
+    game = set()
+    for p in glob.glob(os.path.join(ROOT, project, '*.csproj')):
+        game.update(re.findall(r'\$\(GameManaged\)/([^<]+?\.dll)', read_text(p)))
+    if project in MONOSCRIPT_TABLES:
+        game.add(MONOSCRIPT_TABLES[project])
+    for name in sorted(game):
+        h.update(('%s %s\n' % (name, file_id(os.path.join(managed, name)))).encode())
     return h.hexdigest()
 
 
-def build_assemblies(game):
+def build_assemblies(game, bench):
     managed = os.path.join(game, DATA_NAME, 'Managed')
-    # C# helpers, and Steamworks.NET / Input System rebuilt for macOS (dotnet takes seconds even when there's
-    # nothing to do, so it only runs when something changed)
-    stamp, fingerprint = os.path.join(WORK, '.projects.stamp'), projects_inputs(managed)
-    built = all(glob.glob(os.path.join(ROOT, project, 'out', '*.dll')) for project in CS_PROJECTS)
-    up_to_date = read_text(stamp) == fingerprint and built
-    if not up_to_date:
-        if os.path.exists(stamp):
-            os.remove(stamp)
+    # C# helpers, and Steamworks.NET / Input System rebuilt for macOS; dotnet takes seconds even when there's nothing
+    # to do, so a project is only built when something it's built from changed
+    stamp = os.path.join(WORK, '.projects.stamp')
+    stamps = read_stamps(stamp)
+    projects = [p for p in CS_PROJECTS if bench or p != BENCH_PROJECT]
+    wanted = {p: project_inputs(p, managed) for p in projects}
+    stale = [p for p in projects if stamps.get(p) != wanted[p] or not glob.glob(os.path.join(ROOT, p, 'out', '*.dll'))]
+    if stale:
         env = dotnet_env()
         try:
-            for project in CS_PROJECTS:
+            for project in stale:  # in CS_PROJECTS order: monoscripttypes, which writes the tables, comes first
+                stamps.pop(project, None)
+                write_stamps(stamp, stamps)
                 d = os.path.join(ROOT, project)
                 if project in MONOSCRIPT_TABLES:
                     run([paths.DOTNET, os.path.join(TOOLS, 'csharp/monoscripttypes/out/monoscripttypes.dll'),
@@ -531,10 +571,11 @@ def build_assemblies(game):
                          os.path.join(d, 'UnitySourceGeneratedAssemblyMonoScriptTypes_v1.cs')], quiet=True, env=env)
                 run([paths.DOTNET, 'build', d, '-c', 'Release', '-o', os.path.join(d, 'out'), '-nologo', '-v:q',
                      '-p:GameManaged=' + managed], quiet=True, env=env)
+                stamps[project] = wanted[project]
+                write_stamps(stamp, stamps)
         finally:
             run([paths.DOTNET, 'build-server', 'shutdown'], quiet=True, env=env)
-        write_text(stamp, fingerprint)
-        print('    built %d projects' % len(CS_PROJECTS))
+        print('    built ' + ', '.join(os.path.basename(p) for p in stale))
     # Assembly-CSharp with its ComputeShader.SetBuffer calls routed through MacPortCompat, and the port assemblies
     # that replace or join the game's (assemble_app.py copies everything in work/managed)
     out = os.path.join(WORK, 'managed')
@@ -547,7 +588,7 @@ def build_assemblies(game):
         os.makedirs(out, exist_ok=True)
         print('    ' + run_logged([paths.DOTNET, ilpatch, src, dst, managed, compat], os.path.join(out, 'ilpatch.log')))
         write_text(stamp, inputs)
-    elif up_to_date:
+    elif not stale:
         print('    up to date')
     for dll in (compat, os.path.join(ROOT, 'work/build/inputsystem/out/Unity.InputSystem.dll')):
         shutil.copy2(dll, out)
@@ -558,26 +599,39 @@ def build_assemblies(game):
 def convert_shaders(game, force):
     data = os.path.join(game, DATA_NAME)
     out = os.path.join(WORK, 'patched')
-    inputs = CONVERTED + ('globalgamemanagers',)
-    h = hashlib.sha256(('macOS %s\n' % platform.mac_ver()[0]).encode())  # the system Metal compiler validates the shaders
-    for rel in inputs:
-        h.update(('%s %s\n' % (rel, file_digest(os.path.join(data, rel)))).encode())
+    # A file is converted again when it changed or the converter did (or the system Metal compiler, which validates
+    # the shaders); globalgamemanagers, which a game update always changes (version), only gets the settings patch
+    h = hashlib.sha256(('macOS %s\n' % platform.mac_ver()[0]).encode())
     for rel in CONVERTER:
         h.update(('%s %s\n' % (rel, file_digest(os.path.join(ROOT, rel)))).encode())
+    wanted = {rel: '%s %s' % (h.hexdigest(), file_id(os.path.join(data, rel))) for rel in CONVERTED}
+    wanted['globalgamemanagers'] = '%s %s' % (file_digest(tool('patch_settings.py')),
+                                              file_id(os.path.join(data, 'globalgamemanagers')))
     stamp = os.path.join(out, '.stamp')
-    if not force and read_text(stamp) == h.hexdigest() and all(os.path.exists(os.path.join(out, rel)) for rel in inputs):
+    stamps = read_stamps(stamp)
+    stale = [rel for rel, fingerprint in wanted.items()
+             if force or stamps.get(rel) != fingerprint or not os.path.exists(os.path.join(out, rel))]
+    if not stale:
         print('    up to date')
         return
-    print('    converting (a few minutes the first time, after that only new shaders are compiled)', flush=True)
-    if os.path.exists(stamp):
-        os.remove(stamp)
+    for rel in stale:  # until it's converted again
+        stamps.pop(rel, None)
+    write_stamps(stamp, stamps)
     os.makedirs(os.path.join(out, 'Resources'), exist_ok=True)
     py = [sys.executable, '-I']
-    run_logged(py + [tool('port_shaders.py'), data, out, *CONVERTED, '--validate'], os.path.join(out, 'shaders.log'),
-               show=True)
-    print('    ' + run_logged(py + [tool('patch_settings.py'), os.path.join(data, 'globalgamemanagers'),
-                                    os.path.join(out, 'globalgamemanagers')], os.path.join(out, 'settings.log')))
-    write_text(stamp, h.hexdigest())
+    files = [rel for rel in CONVERTED if rel in stale]
+    if files:
+        print('    converting %s (a few minutes the first time, after that only new shaders are compiled)' %
+              ('the game data' if len(files) == len(CONVERTED) else ', '.join(files)), flush=True)
+        run_logged(py + [tool('port_shaders.py'), data, out, *files, '--validate'], os.path.join(out, 'shaders.log'),
+                   show=True)
+        stamps.update((rel, wanted[rel]) for rel in files)
+        write_stamps(stamp, stamps)
+    if 'globalgamemanagers' in stale:
+        print('    ' + run_logged(py + [tool('patch_settings.py'), os.path.join(data, 'globalgamemanagers'),
+                                        os.path.join(out, 'globalgamemanagers')], os.path.join(out, 'settings.log')))
+        stamps['globalgamemanagers'] = wanted['globalgamemanagers']
+        write_stamps(stamp, stamps)
 
 
 # --- icon
@@ -600,7 +654,7 @@ def app_inputs(game, args):
     h = hashlib.sha256(repr((game, args.out, args.bench, args.development, args.no_burst)).encode())
     for d in (paths.UNITY_MAC, paths.UNITY_MONO, paths.STEAMWORKS_NET, paths.BURST):
         h.update((read_text(os.path.join(d, '.dep')) or '-').encode())
-    for rel in APP_INPUTS:
+    for rel in APP_INPUTS + (BENCH_APP_INPUTS if args.bench else ()):
         p = os.path.join(ROOT, rel)
         h.update(('%s %s\n' % (rel, file_digest(p) if os.path.exists(p) else '-')).encode())
     for d in (os.path.join(WORK, 'managed'), os.path.join(WORK, 'patched'), os.path.join(game, DATA_NAME)):
@@ -667,7 +721,7 @@ def main():
             print('==> deps')
             downloads.wait()
         print('==> assemblies')
-        build_assemblies(game)
+        build_assemblies(game, args.bench)
         print('==> icon')
         make_icon(game)
         print('==> app')

@@ -1,7 +1,7 @@
 """Converts the shaders and compute shaders of Unity serialized files from D3D11 to Metal and writes patched copies.
 
 A pool of worker processes translates the vertex/fragment subprograms and, with --validate, compiles each distinct
-MSL source once with the system Metal compiler (variants that fail are left out). The results are kept in
+MSL source once with the system Metal compiler, in batches (variants that fail are left out). The results are kept in
 work/metal-cache (per macOS build and mtlcheck), so later runs only compile sources they haven't seen. The files go
 through the pool one after another, overlapped: while the main process assembles and writes one file, the workers
 already translate the next.
@@ -27,8 +27,8 @@ import UnityPy  # noqa: E402
 import paths  # noqa: E402
 from compute import convert_compute_shader  # noqa: E402
 from convert import ConvertError, SubprogramConverter  # noqa: E402
-from patch_shaders import (PLATFORM_D3D11, convert_item, convert_shader, d3d11_segments, msl_hash,  # noqa: E402
-                           shader_items, validate_msl, worker_init)
+from patch_shaders import (PLATFORM_D3D11, VALIDATE_BATCH, convert_item, convert_shader, d3d11_segments,  # noqa: E402
+                           msl_hash, shader_items, validate_batch, worker_init)
 
 
 def cache_path():
@@ -109,11 +109,37 @@ class Converter:
         f.translating = self.pool.map_async(convert_item, f.work, chunksize=16)
         f.work = None
         known = len(self.verdicts)
-        for obj in f.env.objects:
-            if obj.type.name != 'ComputeShader':
-                continue
+        self.convert_computes(f)
+        if len(self.verdicts) != known:
+            self.save_verdicts()
+        return f
+
+    def convert_computes(self, f):
+        """Converts the compute shaders of a file. Kernel sources not validated before are taken to compile at first;
+        then they are validated together and the shaders using them converted again."""
+        todo = {}  # MSL hash -> (MSL hash, stage, MSL) of the sources not validated before
+
+        def convert(obj):
             tt = obj.read_typetree()
-            st = convert_compute_shader(tt, self.validate_compute if self.cache else None)
+            unknown = []
+
+            def validate(src, stage, label):
+                h = msl_hash(stage, src)
+                if h not in self.verdicts:
+                    todo[h] = (h, stage, src)
+                    unknown.append(h)
+                elif self.verdicts[h]:
+                    raise ConvertError('metal: ' + first_error(self.verdicts[h]))
+            st = convert_compute_shader(tt, validate if self.cache else None)
+            return obj, tt, st, bool(unknown)
+
+        shaders = [convert(obj) for obj in f.env.objects if obj.type.name == 'ComputeShader']
+        if todo:
+            items = list(todo.values())
+            for i in range(0, len(items), VALIDATE_BATCH):
+                self.verdicts.update(validate_batch(items[i:i + VALIDATE_BATCH]))
+            shaders = [convert(obj) if unknown else (obj, tt, st, unknown) for obj, tt, st, unknown in shaders]
+        for obj, tt, st, _ in shaders:
             if st.get('skipped'):
                 continue
             obj.save_typetree(tt)
@@ -121,16 +147,6 @@ class Converter:
             f.failed_kernels += st['failed']
             f.log.append('%-70s kernels=%-4d failed=%d %s' % (st['name'][:70], st['kernels'], st['failed'],
                                                               list(st['errors'].items())[:1]))
-        if len(self.verdicts) != known:
-            self.save_verdicts()
-        return f
-
-    def validate_compute(self, src, stage, label):
-        h = msl_hash(stage, src)
-        if h not in self.verdicts:
-            self.verdicts[h] = validate_msl((h, stage, src))[1]
-        if self.verdicts[h]:
-            raise ConvertError('metal: ' + first_error(self.verdicts[h]))
 
     def collect(self, f):
         """Waits for a file's translated subprograms and queues the validation of the sources not seen before."""
@@ -141,12 +157,13 @@ class Converter:
         f.translating = None
         todo = [(h, stage, src) for h, (stage, src) in f.sources.items() if h not in self.verdicts] if self.cache else []
         if todo:
-            f.validating = self.pool.map_async(validate_msl, todo, chunksize=4)
+            batches = [todo[i:i + VALIDATE_BATCH] for i in range(0, len(todo), VALIDATE_BATCH)]
+            f.validating = self.pool.map_async(validate_batch, batches, chunksize=1)
 
     def write(self, f):
         """Assembles a file's shaders once its sources are validated and writes the file, its log and report."""
         if f.validating:
-            self.verdicts.update(f.validating.get())
+            self.verdicts.update(verdict for batch in f.validating.get() for verdict in batch)
             self.save_verdicts()
         log, report, failures = [], [], []
         for i, (obj, tt, keys) in enumerate(f.shaders):

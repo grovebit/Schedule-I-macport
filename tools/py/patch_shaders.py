@@ -156,12 +156,14 @@ def convert_item(item):
         return key, None, str(e)[:200]
 
 
-def validate_msl(item):
-    """Pool worker: (MSL hash, stage, MSL) -> (MSL hash, '' if it compiles, else the compiler's message)."""
+VALIDATE_BATCH = 50  # sources the Metal compiler checks at once (mtlcheck.compile_batch)
+
+
+def validate_batch(items):
+    """Pool worker: [(MSL hash, stage, MSL)] -> [(MSL hash, '' if it compiles, else the compiler's message)]."""
     import mtlcheck
-    h, stage, src = item
-    rc, msg = mtlcheck.compile_msl(src, stage)
-    return h, '' if rc == 0 else (msg[:3000] or 'unknown error')
+    results = mtlcheck.compile_batch([(src, stage) for _, stage, src in items])
+    return [(h, '' if rc == 0 else (msg[:3000] or 'unknown error')) for (h, _, _), (rc, msg) in zip(items, results)]
 
 
 def compress_segment(segment):
