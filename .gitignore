@@ -21,6 +21,7 @@
 /tools/dotnet-tools/
 /tools/dxbc2metal/build*/
 /tools/mtlcheck/*.dylib
+/tools/launcher/launcher
 /tools/csharp/**/obj/
 /tools/csharp/**/bin/
 /tools/csharp/**/out/

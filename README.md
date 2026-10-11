@@ -30,7 +30,12 @@ In Terminal, in this folder:
   else).
 - If the Xcode Command Line Tools are missing, it starts their installer: run `./build.sh` again when it's done.
 
-The app is `build/Schedule I.app`. After a game update, run `./build.sh` again; it only redoes what changed.
+The app is `build/Schedule I.app`. It keeps up with the game: when you open it after Steam updated the game, it
+rebuilds itself first (a minute or two, as only what changed is redone), then starts the game. It uses this folder
+for that, so keep it. After updating this repository, run `./build.sh` again.
+
+If the game or this folder is on an external drive (or in Documents, Desktop or Downloads), macOS asks during such an
+update whether Schedule I may access its files: allow it, the rebuild needs them.
 
 ## Play
 
@@ -54,6 +59,8 @@ defaults delete com.TVGS.ScheduleI MacPortRenderScale              # back to ful
 | "… is the IL2CPP build" | Switch the game to the `alternate` branch in Steam, let it update, then run `./build.sh` again. |
 | "Couldn't find the Windows version of Schedule I" | Run `./build.sh` again and pick the game folder, or name it: `./build.sh --game "/path/to/Schedule I"`. |
 | "the game files use Unity …" (or another version) | The game was updated to a version the port doesn't support yet: update this repository and try again. |
+| "Couldn't update Schedule I" when you open the app | The app couldn't rebuild itself after a game update; the message says why. **Play Anyway** starts the previous version, **Show Log** opens `work/app-update.log`. |
+| "Operation not permitted" | macOS didn't let the app read the game or this folder: allow it in System Settings → Privacy & Security → Files & Folders → Schedule I. |
 | Short stutters the first time you see a place | Normal: macOS prepares the graphics once, then remembers them. |
 
 ## For developers
@@ -69,12 +76,18 @@ defaults delete com.TVGS.ScheduleI MacPortRenderScale              # back to ful
   into the game's copies (`tools/csharp/monoscripttypes`).
 - **Game code (Assembly-CSharp):** unchanged, except that compute shader buffer calls go through `MacPortCompat`.
 - **Port options** (render scale): applied at startup by `MacPortRuntime`.
+- **Updates:** the app's executable is `tools/launcher` instead of Unity's stub. Before starting Unity's player, it
+  compares the game folder with the file list recorded in the app (sizes and dates only, so macOS doesn't ask for
+  permission) and runs `./build.sh` if the game changed, with a progress panel. `--check` only reports whether it
+  changed: `build/Schedule\ I.app/Contents/MacOS/Schedule\ I --check`.
 
 ### The build
 
 - `tools/py/build.py` runs the steps. Its downloads are pinned and checksummed.
 - Each step is skipped when its inputs haven't changed. `work/metal-cache` remembers which shaders the Metal
   compiler accepted, so after a game update only new shaders are compiled.
+- The app is assembled next to the old one and only replaces it when complete, so a build that fails or is stopped
+  leaves the old app working. Builds of the same folder wait for each other.
 - `./build.sh --help` lists the options: `--game`, `--out`, `--development`, `--no-burst`, `--force`, `--bench`.
 - Conversion logs are in `work/patched/`.
 - Only the port's source is tracked. `deps/`, `build/` and `work/` are generated, apart from the project files in

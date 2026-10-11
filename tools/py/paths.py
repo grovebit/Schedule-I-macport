@@ -9,6 +9,7 @@ TOOLS = os.path.join(ROOT, 'tools')
 
 DATA_NAME = 'Schedule I_Data'
 GAME_DIR_FILE = os.path.join(WORK, 'game-dir.txt')  # game folder of the last build
+LAUNCHER = os.path.join(TOOLS, 'launcher', 'launcher')  # the app's executable (built from tools/launcher)
 
 DOTNET = os.path.join(DEPS, 'dotnet', 'dotnet')
 UNITY_MONO = os.path.join(DEPS, 'unity-mono')  # Unity editor's MonoBleedingEdge: macOS class libraries, mono

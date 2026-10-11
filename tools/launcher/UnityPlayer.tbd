@@ -1,0 +1,12 @@
+--- !tapi-tbd
+# Unity's player library as the launcher links it: install name and entry point of the macOS player's
+# Frameworks/UnityPlayer.dylib (int PlayerMain(int, const char **)), so the launcher builds without the download
+tbd-version:     4
+targets:         [ arm64-macos ]
+install-name:    '@executable_path/../Frameworks/UnityPlayer.dylib'
+current-version: 0
+compatibility-version: 0
+exports:
+  - targets:     [ arm64-macos ]
+    symbols:     [ __Z10PlayerMainiPPKc ]
+...

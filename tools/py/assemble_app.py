@@ -1,6 +1,7 @@
 """Assembles a native macOS (Apple Silicon) Schedule I.app from the Windows build.
 
-- Unity 2022.3.62f2 macOS Mono player (UnityPlayer.app template)
+- Unity 2022.3.62f2 macOS Mono player (UnityPlayer.app template), started by tools/launcher, which first rebuilds
+  the app if the game folder changed (MacPortUpdate in Info.plist)
 - macOS Mono class libraries (unityjit-macos) and macOS UnityEngine modules
 - game data with D3D11 shaders replaced by converted Metal shaders (work/patched)
 - Steamworks.NET rebuilt for macOS + Valve's universal libsteam_api
@@ -14,8 +15,10 @@ import json
 import os
 import plistlib
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -78,13 +81,19 @@ def read_ahead(root):
     for r, _, names in os.walk(root):
         files += [p for p in (os.path.join(r, n) for n in names) if not os.path.islink(p)]
 
+    stop = threading.Event()
+
     def read(path):
         with open(path, 'rb', buffering=0) as f:
             buf = bytearray(1 << 20)
-            while f.readinto(buf):
+            while not stop.is_set() and f.readinto(buf):
                 pass
     with ThreadPoolExecutor(8) as pool:
-        list(pool.map(read, sorted(files, key=os.path.getsize, reverse=True)))
+        try:
+            list(pool.map(read, sorted(files, key=os.path.getsize, reverse=True)))
+        except BaseException:  # e.g. interrupted: don't wait for the reads
+            stop.set()
+            raise
 
 
 def rewrite_json(path, edit):
@@ -142,28 +151,14 @@ def game_version(game):
     return '1.0'
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument('--game', default=paths.saved_game_dir(), help='game folder (default: the one of the last build.sh run)')
-    ap.add_argument('--out', default=None)
-    ap.add_argument('--development', action='store_true', help='use the development player (more logging)')
-    ap.add_argument('--no-sign', action='store_true')
-    ap.add_argument('--no-burst', action='store_true', help='skip Burst AOT (Burst jobs then run as managed code)')
-    ap.add_argument('--bench', action='store_true', help='build the benchmark variant (see bench.py)')
-    args = ap.parse_args()
-    if not args.game:
-        ap.error('--game is required (no previous build.sh run)')
-
-    app = args.out or ROOT + ('/build/Schedule I Bench.app' if args.bench else '/build/Schedule I.app')
+def build_app(app, args):
     bundle_id = BUNDLE_ID + ('.bench' if args.bench else '')
     contents = os.path.join(app, 'Contents')
-    if os.path.exists(app):
-        shutil.rmtree(app)
     exe_name = 'Schedule I'
     player = PLAYER_DEV if args.development else PLAYER
 
-    # --- player binaries
-    clone(os.path.join(player, 'MacOS/UnityPlayer'), os.path.join(contents, 'MacOS', exe_name))
+    # --- player binaries; the executable is the launcher, which calls the player's UnityPlayer.dylib like Unity's stub
+    clone(paths.LAUNCHER, os.path.join(contents, 'MacOS', exe_name))
     for f in os.listdir(os.path.join(player, 'Frameworks')):
         clone(os.path.join(player, 'Frameworks', f), os.path.join(contents, 'Frameworks', f))
     clone(os.path.join(player, 'Resources/unity default resources'), os.path.join(contents, 'Resources/unity default resources'))
@@ -249,10 +244,14 @@ def main():
         'LSEnvironment': {'SteamAppId': STEAM_APP_ID, 'SteamGameId': STEAM_APP_ID},
         'NSMicrophoneUsageDescription': 'Voice chat',
     }
+    if args.update:
+        info['MacPortUpdate'] = json.loads(args.update)
     with open(os.path.join(contents, 'Info.plist'), 'wb') as f:
         plistlib.dump(info, f)
     with open(os.path.join(contents, 'PkgInfo'), 'w') as f:
         f.write('APPL????')
+    if args.game_files:  # the state of the game folder, which the launcher compares it with
+        shutil.copyfile(args.game_files, os.path.join(contents, 'Resources/MacPortGameFiles.txt'))
 
     if not args.no_sign:
         read_ahead(app)
@@ -260,7 +259,53 @@ def main():
         clone(burst.result(), os.path.join(contents, 'PlugIns/lib_burst_generated.bundle'))
     if not args.no_sign:
         # ad-hoc signature (required on Apple Silicon once Info.plist/bundle contents changed)
-        subprocess.run(['codesign', '--force', '--deep', '--sign', '-', app], check=True)
+        r = subprocess.run(['codesign', '--force', '--deep', '--sign', '-', app], capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit('codesign failed:\n' + r.stdout + r.stderr)
+        # The first start of newly signed code waits while macOS checks it (16 s for this bundle on a USB SSD):
+        # starting the launcher once now (its --check only compares the game files) gets that over with here, while
+        # the launcher's progress panel is still up, instead of when the game starts
+        if subprocess.run([os.path.join(contents, 'MacOS', exe_name), '--check'],
+                          stdout=subprocess.DEVNULL).returncode not in (0, 1):
+            sys.exit("the app's executable doesn't start")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--game', default=paths.saved_game_dir(), help='game folder (default: the one of the last build.sh run)')
+    ap.add_argument('--out', default=None)
+    ap.add_argument('--development', action='store_true', help='use the development player (more logging)')
+    ap.add_argument('--no-sign', action='store_true')
+    ap.add_argument('--no-burst', action='store_true', help='skip Burst AOT (Burst jobs then run as managed code)')
+    ap.add_argument('--bench', action='store_true', help='build the benchmark variant (see bench.py)')
+    ap.add_argument('--update', metavar='JSON', help="what the app's launcher needs to rebuild the app when the game "
+                    'changes (from build.py)')
+    ap.add_argument('--game-files', metavar='FILE', help="the game's data files as listed by build.py, which the "
+                    'launcher compares the game folder with')
+    args = ap.parse_args()
+    if not args.game:
+        ap.error('--game is required (no previous build.sh run)')
+
+    app = os.path.abspath(args.out or ROOT + ('/build/Schedule I Bench.app' if args.bench else '/build/Schedule I.app'))
+    # Assembled next to the app and swapped in when complete: an assembly that fails or is stopped leaves the app as it
+    # was (its launcher may be the one waiting for this build)
+    new = os.path.join(os.path.dirname(app), '.new-' + os.path.basename(app))
+    old = os.path.join(os.path.dirname(app), '.old-' + os.path.basename(app))
+    for d in (new, old):
+        if os.path.exists(d):
+            shutil.rmtree(d)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # (how build.py stops it) so that it cleans up
+    try:
+        build_app(new, args)
+    except BaseException:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        shutil.rmtree(new, ignore_errors=True)
+        raise
+    if os.path.exists(app):
+        os.rename(app, old)
+    os.rename(new, app)
+    shutil.rmtree(old, ignore_errors=True)
     print('built', app)
 
 

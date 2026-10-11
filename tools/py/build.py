@@ -4,16 +4,20 @@ Steps, each skipped when up to date (after a game update only the affected work 
   game        finds the game folder; checks it is the Mono build with the Unity/package versions pinned below
   deps        downloads into deps/ (pinned, checksummed): .NET SDK, Unity's macOS player module and the editor's
               Mono, Steamworks.NET, Input System and Burst; in the background, as only the assemblies step needs them
-  tools       libmtlcheck, libdxbc2metal
+  tools       libmtlcheck, libdxbc2metal, the app's launcher
   shaders     D3D11 -> Metal shaders, graphics settings -> work/patched
   assemblies  the C# helpers, Steamworks.NET and Input System rebuilt for macOS (with the MonoScript tables of the
               game's copies), Assembly-CSharp IL patch -> work/managed
   icon        app icon from Schedule I.exe -> work/icon
   app         assemble_app.py -> build/Schedule I.app
+
+The app's launcher (tools/launcher) runs this again when the game folder changed since the build (a Steam update).
 """
 import argparse
+import fcntl
 import glob
 import hashlib
+import json
 import os
 import platform
 import re
@@ -60,7 +64,7 @@ CONVERTER = ('tools/py/port_shaders.py', 'tools/py/patch_shaders.py', 'tools/py/
 # re-signing it (minutes for the 6 GB bundle)
 APP_INPUTS = ('tools/py/assemble_app.py', 'tools/py/burst_aot.py', 'tools/py/paths.py', 'work/patched/.stamp',
               'work/icon/ScheduleI.icns', 'work/build/steamworks/out/com.rlabrecque.steamworks.net.dll',
-              'tools/csharp/MacPortRuntime/out/MacPortRuntime.dll')
+              'tools/csharp/MacPortRuntime/out/MacPortRuntime.dll', 'tools/launcher/launcher')
 BENCH_APP_INPUTS = ('tools/csharp/MacPortBench/out/MacPortBench.dll',)
 
 IL2CPP_HELP = '''%s is the IL2CPP build (Steam's default branch), but the port needs the Mono build.
@@ -86,10 +90,16 @@ def start(cmd, **kw):
     return p
 
 
-def stop_children():
+def stop_children(grace=0):
+    """Stops the child processes; those still running after grace seconds (when interrupted, they got the signal too
+    and may be cleaning up) are terminated."""
     _stopping.set()
+    deadline = time.time() + grace
     for p in list(_running):
-        p.terminate()
+        try:
+            p.wait(max(0, deadline - time.time()))
+        except subprocess.TimeoutExpired:
+            p.terminate()
 
 
 def run(cmd, quiet=False, **kw):
@@ -97,10 +107,8 @@ def run(cmd, quiet=False, **kw):
     if quiet:
         kw.update(stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     p = start(cmd, **kw)
-    try:
-        out = p.communicate()[0]
-    finally:
-        _running.discard(p)
+    out = p.communicate()[0]  # if interrupted, p stays in _running for stop_children
+    _running.discard(p)
     if p.returncode != 0:
         if quiet:
             sys.stdout.write(out[-8000:])
@@ -186,6 +194,19 @@ def source_files(*dirs):
 
 def tool(name):
     return os.path.join(TOOLS, 'py', name)
+
+
+def lock_work():
+    """Waits until no other build of this folder runs (./build.sh, or the app's launcher updating the app); returns
+    the lock file, which holds the lock until it is closed."""
+    os.makedirs(WORK, exist_ok=True)
+    f = open(os.path.join(WORK, '.lock'), 'w')
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print('    waiting for the other build to finish (./build.sh, or the app updating itself)')
+        fcntl.flock(f, fcntl.LOCK_EX)
+    return f
 
 
 # --- game
@@ -523,6 +544,11 @@ def build_tools():
     if not up_to_date(os.path.join(build_dir, 'libdxbc2metal.dylib'),
                       source_files(os.path.join(TOOLS, 'dxbc2metal'), os.path.join(TOOLS, 'hlslcc'))):
         run([cmake, '--build', build_dir, '-j', str(os.cpu_count() or 4)], quiet=True)
+    # the app's executable: rebuilds the app if the game changed, then starts Unity's player
+    src, tbd = os.path.join(TOOLS, 'launcher', 'launcher.m'), os.path.join(TOOLS, 'launcher', 'UnityPlayer.tbd')
+    if not up_to_date(paths.LAUNCHER, [src, tbd]):
+        run(['xcrun', 'clang', '-fobjc-arc', '-O2', '-mmacosx-version-min=11.0', '-framework', 'Foundation', src,
+             '-Xlinker', '-weak_library', '-Xlinker', tbd, '-o', paths.LAUNCHER], quiet=True)
 
 
 def project_inputs(project, managed):
@@ -649,15 +675,30 @@ def make_icon(game):
 
 # --- app
 
-def app_inputs(game, args):
+def game_files(game):
+    """The game's data files as "size mtime_ns path" lines (without dot files such as .DS_Store): what the app's
+    launcher compares the game folder with before starting the game."""
+    data = os.path.join(game, DATA_NAME)
+    lines = []
+    for root, dirs, files in os.walk(data):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        for f in files:
+            if not f.startswith('.'):
+                st = os.stat(os.path.join(root, f))
+                lines.append((os.path.relpath(os.path.join(root, f), data), st.st_size, st.st_mtime_ns))
+    return ''.join('%d %d %s\n' % (size, mtime, rel) for rel, size, mtime in sorted(lines))
+
+
+def app_inputs(game, args, game_list, update):
     """Fingerprint of everything the app is assembled from."""
-    h = hashlib.sha256(repr((game, args.out, args.bench, args.development, args.no_burst)).encode())
+    h = hashlib.sha256(repr((game, args.bench, args.development, args.no_burst)).encode())
+    h.update((game_list + json.dumps(update, sort_keys=True)).encode())
     for d in (paths.UNITY_MAC, paths.UNITY_MONO, paths.STEAMWORKS_NET, paths.BURST):
         h.update((read_text(os.path.join(d, '.dep')) or '-').encode())
     for rel in APP_INPUTS + (BENCH_APP_INPUTS if args.bench else ()):
         p = os.path.join(ROOT, rel)
         h.update(('%s %s\n' % (rel, file_digest(p) if os.path.exists(p) else '-')).encode())
-    for d in (os.path.join(WORK, 'managed'), os.path.join(WORK, 'patched'), os.path.join(game, DATA_NAME)):
+    for d in (os.path.join(WORK, 'managed'), os.path.join(WORK, 'patched')):
         for root, dirs, files in os.walk(d):
             dirs.sort()
             for f in sorted(files):
@@ -667,17 +708,28 @@ def app_inputs(game, args):
 
 
 def assemble(game, args):
-    app = os.path.abspath(args.out) if args.out else os.path.join(paths.BUILD, 'Schedule I Bench.app' if args.bench else 'Schedule I.app')
+    app = os.path.realpath(args.out or os.path.join(paths.BUILD, 'Schedule I Bench.app' if args.bench else 'Schedule I.app'))
     stamp = os.path.join(WORK, 'app-stamps', hashlib.sha1(app.encode()).hexdigest()[:16])
-    fingerprint = app_inputs(game, args)
+    game_list = game_files(game)
+    # What the app's launcher needs to rebuild it (./build.sh --game Game --out <app>) when the game folder no longer
+    # matches the files listed in the app; none for the benchmark app, which bench.py runs as built
+    update = None if args.bench else {
+        'Game': game, 'Repository': ROOT,
+        'BuildArguments': [flag for flag, on in (('--development', args.development), ('--no-burst', args.no_burst),
+                                                 ('--skip-version-check', args.skip_version_check)) if on]}
+    fingerprint = app_inputs(game, args, game_list, update)
     if not args.force and read_text(stamp) == fingerprint and os.path.exists(os.path.join(app, 'Contents', 'Info.plist')):
         print('    up to date: ' + app)
         return
     if os.path.exists(stamp):
         os.remove(stamp)
-    cmd = [sys.executable, '-I', tool('assemble_app.py'), '--game', game, '--out', app]
+    listing = os.path.join(WORK, 'game-files.txt')
+    write_text(listing, game_list)
+    cmd = [sys.executable, '-I', tool('assemble_app.py'), '--game', game, '--out', app, '--game-files', listing]
     cmd += [flag for flag, on in (('--bench', args.bench), ('--development', args.development),
                                   ('--no-burst', args.no_burst)) if on]
+    if update:
+        cmd += ['--update', json.dumps(update)]
     run(cmd)
     write_text(stamp, fingerprint)
 
@@ -700,6 +752,7 @@ def main():
     t0 = time.time()
     try:
         print('==> game')
+        lock = lock_work()  # noqa: F841 (held until the build ends)
         game = find_game(args.game)
         print('    ' + game)
         check_game(game, args.skip_version_check)
@@ -730,7 +783,7 @@ def main():
         stop_children()
         sys.exit('\nerror: %s' % e)
     except KeyboardInterrupt:
-        stop_children()
+        stop_children(grace=20)
         sys.exit(130)
     print('done in %d:%02d. Start Steam, then open the app.' % divmod(int(time.time() - t0), 60))
 
