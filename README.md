@@ -52,6 +52,15 @@ defaults write com.TVGS.ScheduleI MacPortRenderScale -float 0.75   # 75% resolut
 defaults delete com.TVGS.ScheduleI MacPortRenderScale              # back to full resolution
 ```
 
+The port also renders the god rays with lower-resolution textures and ambient occlusion at half resolution: about
+2.5 ms less per frame on an M2 Pro (3200x2000, 75% render scale), with no visible difference in screenshots. To use
+the game's own effect settings instead:
+
+```sh
+defaults write com.TVGS.ScheduleI MacPortFeatures -string ""     # game's own settings
+defaults delete com.TVGS.ScheduleI MacPortFeatures               # back to the port's faster settings
+```
+
 ## Troubleshooting
 
 | You see | What to do |
@@ -75,7 +84,9 @@ defaults delete com.TVGS.ScheduleI MacPortRenderScale              # back to ful
 - **Steamworks.NET and the Input System:** rebuilt for macOS (`work/build/`), with the script tables Unity put
   into the game's copies (`tools/csharp/monoscripttypes`).
 - **Game code (Assembly-CSharp):** unchanged, except that compute shader buffer calls go through `MacPortCompat`.
-- **Port options** (render scale): applied at startup by `MacPortRuntime`.
+- **Port options** (render scale, renderer feature settings): applied at startup by `MacPortRuntime`.
+  `MacPortFeatures` (or `-macport-features`) sets fields of URP renderer features by reflection, as a list like
+  `GodRaysRenderFeature.settings.textureQuality=Low,ScreenSpaceAmbientOcclusion.m_Settings.Downsample=1`.
 - **Updates:** the app's executable is `tools/launcher` instead of Unity's stub. Before starting Unity's player, it
   compares the game folder with the file list recorded in the app (sizes and dates only, so macOS doesn't ask for
   permission) and runs `./build.sh` if the game changed, with a progress panel. `--check` only reports whether it
