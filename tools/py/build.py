@@ -622,7 +622,7 @@ def build_assemblies(game, bench):
 
 # --- shaders
 
-def convert_shaders(game, force):
+def convert_shaders(game, force, main_branch_version):
     data = os.path.join(game, DATA_NAME)
     out = os.path.join(WORK, 'patched')
     # A file is converted again when it changed or the converter did (or the system Metal compiler, which validates
@@ -631,8 +631,9 @@ def convert_shaders(game, force):
     for rel in CONVERTER:
         h.update(('%s %s\n' % (rel, file_digest(os.path.join(ROOT, rel)))).encode())
     wanted = {rel: '%s %s' % (h.hexdigest(), file_id(os.path.join(data, rel))) for rel in CONVERTED}
-    wanted['globalgamemanagers'] = '%s %s' % (file_digest(tool('patch_settings.py')),
-                                              file_id(os.path.join(data, 'globalgamemanagers')))
+    settings_args = ['--main-branch-version'] if main_branch_version else []
+    wanted['globalgamemanagers'] = '%s %s %s' % (file_digest(tool('patch_settings.py')),
+                                                 file_id(os.path.join(data, 'globalgamemanagers')), settings_args)
     stamp = os.path.join(out, '.stamp')
     stamps = read_stamps(stamp)
     stale = [rel for rel, fingerprint in wanted.items()
@@ -655,7 +656,8 @@ def convert_shaders(game, force):
         write_stamps(stamp, stamps)
     if 'globalgamemanagers' in stale:
         print('    ' + run_logged(py + [tool('patch_settings.py'), os.path.join(data, 'globalgamemanagers'),
-                                        os.path.join(out, 'globalgamemanagers')], os.path.join(out, 'settings.log')))
+                                        os.path.join(out, 'globalgamemanagers'), *settings_args],
+                                       os.path.join(out, 'settings.log')))
         stamps['globalgamemanagers'] = wanted['globalgamemanagers']
         write_stamps(stamp, stamps)
 
@@ -691,7 +693,7 @@ def game_files(game):
 
 def app_inputs(game, args, game_list, update):
     """Fingerprint of everything the app is assembled from."""
-    h = hashlib.sha256(repr((game, args.bench, args.development, args.no_burst)).encode())
+    h = hashlib.sha256(repr((game, args.bench, args.development, args.no_burst, args.main_branch_version)).encode())
     h.update((game_list + json.dumps(update, sort_keys=True)).encode())
     for d in (paths.UNITY_MAC, paths.UNITY_MONO, paths.STEAMWORKS_NET, paths.BURST):
         h.update((read_text(os.path.join(d, '.dep')) or '-').encode())
@@ -716,7 +718,8 @@ def assemble(game, args):
     update = None if args.bench else {
         'Game': game, 'Repository': ROOT,
         'BuildArguments': [flag for flag, on in (('--development', args.development), ('--no-burst', args.no_burst),
-                                                 ('--skip-version-check', args.skip_version_check)) if on]}
+                                                 ('--skip-version-check', args.skip_version_check),
+                                                 ('--main-branch-version', args.main_branch_version)) if on]}
     fingerprint = app_inputs(game, args, game_list, update)
     if not args.force and read_text(stamp) == fingerprint and os.path.exists(os.path.join(app, 'Contents', 'Info.plist')):
         print('    up to date: ' + app)
@@ -748,6 +751,9 @@ def main():
                     'they are up to date')
     ap.add_argument('--skip-version-check', action='store_true',
                     help="build even if the game's Unity/package versions differ from the pinned ones")
+    ap.add_argument('--main-branch-version', action='store_true',
+                    help='report the game version without its " Alternate" label, so that multiplayer works with '
+                    "players on Steam's default branch of the same version (untested by the developer)")
     args = ap.parse_args()
     t0 = time.time()
     try:
@@ -769,7 +775,7 @@ def main():
         print('==> tools')
         build_tools()
         print('==> shaders')
-        convert_shaders(game, args.force)
+        convert_shaders(game, args.force, args.main_branch_version)
         if downloads:
             print('==> deps')
             downloads.wait()

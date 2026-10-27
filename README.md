@@ -45,6 +45,20 @@ update whether Schedule I may access its files: allow it, the rebuild needs them
 **Saves** are in `~/Library/Application Support/com.TVGS.ScheduleI/Saves`; Steam Cloud doesn't sync them. To
 continue a Windows save, copy its folder from `%USERPROFILE%\AppData\LocalLow\TVGS\Schedule I\Saves` on the PC.
 
+**Multiplayer** goes through Steam as usual, except that there's no Steam overlay (Steam doesn't start the app): open
+the game first, then accept an invite in Steam's friends list, or right-click a friend there → Join Game.
+
+Lobbies only let in players whose game version reads exactly the same, and the `alternate` branch adds a label
+(e.g. "0.4.7f12 Alternate"). To play with friends on Steam's default branch of the same version, build with
+
+```sh
+./build.sh --main-branch-version
+```
+
+so that the app reports the version without " Alternate" (it keeps doing so when it rebuilds itself). Both branches
+are the same game, built differently (Mono and IL2CPP); the developer doesn't test them together. When only one of
+them has been updated, the versions differ again until the other catches up.
+
 **Low frame rate?** Render the game at a lower resolution, upscaled with FSR (menus stay sharp):
 
 ```sh
@@ -62,6 +76,7 @@ defaults delete com.TVGS.ScheduleI MacPortRenderScale              # back to ful
 | "Couldn't update Schedule I" when you open the app | The app couldn't rebuild itself after a game update; the message says why. **Play Anyway** starts the previous version, **Show Log** opens `work/app-update.log`. |
 | "Operation not permitted" | macOS didn't let the app read the game or this folder: allow it in System Settings → Privacy & Security → Files & Folders → Schedule I. |
 | Short stutters the first time you see a place | Normal: macOS prepares the graphics once, then remembers them. |
+| "Version Mismatch" when joining a friend | Your friend is on Steam's default branch: build with `./build.sh --main-branch-version` (see Play), or have them switch to `alternate`. |
 
 ## For developers
 
@@ -88,7 +103,8 @@ defaults delete com.TVGS.ScheduleI MacPortRenderScale              # back to ful
   compiler accepted, so after a game update only new shaders are compiled.
 - The app is assembled next to the old one and only replaces it when complete, so a build that fails or is stopped
   leaves the old app working. Builds of the same folder wait for each other.
-- `./build.sh --help` lists the options: `--game`, `--out`, `--development`, `--no-burst`, `--force`, `--bench`.
+- `./build.sh --help` lists the options: `--game`, `--out`, `--development`, `--no-burst`, `--force`, `--bench`,
+  `--main-branch-version`.
 - Conversion logs are in `work/patched/`.
 - Only the port's source is tracked. `deps/`, `build/` and `work/` are generated, apart from the project files in
   `work/build/`.
@@ -107,7 +123,8 @@ It plays a copy of your newest save in a window and adds the frame times to `wor
 - Shader passes that need geometry or tessellation shaders are dropped, as Metal has neither (the tessellated
   water falls back to the normal one).
 - Converted shaders use full float precision.
-- Tested on an M3 Max. Not tested yet: multiplayer, gamepads.
+- Tested on an M3 Max. Multiplayer: tested joining a Windows player on the default branch (with
+  `--main-branch-version`, from an M2 Pro); not tested yet: hosting from a Mac, gamepads.
 
 ## License
 

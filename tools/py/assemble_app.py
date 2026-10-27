@@ -139,14 +139,17 @@ def install_bench(data_dst):
 
 
 def game_version(game):
+    """The version of the patched globalgamemanagers (see patch_settings.py --main-branch-version): the macOS player
+    reports CFBundleShortVersionString as Application.version, which multiplayer lobbies compare."""
     try:
         import UnityPy
-        env = UnityPy.load(os.path.join(game, DATA_NAME, 'globalgamemanagers'))
+        patched = os.path.join(PATCHED, 'globalgamemanagers')
+        env = UnityPy.load(patched if os.path.exists(patched) else os.path.join(game, DATA_NAME, 'globalgamemanagers'))
         for obj in env.objects:
             if obj.type.name == 'PlayerSettings':
                 tt = obj.read_typetree()
                 return tt.get('bundleVersion') or '1.0'
-    except Exception as e:  # version is cosmetic only
+    except Exception as e:
         print('warning: could not read version:', e)
     return '1.0'
 
