@@ -37,6 +37,9 @@ for that, so keep it. After updating this repository, run `./build.sh` again.
 If the game or this folder is on an external drive (or in Documents, Desktop or Downloads), macOS asks during such an
 update whether Schedule I may access its files: allow it, the rebuild needs them.
 
+**Rather not use Terminal?** [`launcher-app/`](launcher-app/) is a small Mac app that does the setup, game updates
+and settings with buttons.
+
 ## Play
 
 1. Start Steam, logged in to the account that owns the game.

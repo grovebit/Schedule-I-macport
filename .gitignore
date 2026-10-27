@@ -5,6 +5,8 @@
 
 # The assembled app contains the game's files and Unity's player: never commit or share it
 /build/
+# The launcher app built by launcher-app/build.sh
+/launcher-app/build/
 
 # Generated or derived from the game: converted assets, patched/decompiled game code, IDA databases,
 # extracted icon. Only the project files for the rebuilt libraries are source.
