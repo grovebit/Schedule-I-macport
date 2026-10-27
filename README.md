@@ -42,6 +42,21 @@ update whether Schedule I may access its files: allow it, the rebuild needs them
 1. Start Steam, logged in to the account that owns the game.
 2. Open `build/Schedule I.app`.
 
+**Resolution:** on a MacBook with a notch, fullscreen games stay below the notch, so pick the resolution without it,
+e.g. 3024x1890 on a 14" MacBook Pro. The panel's full height (3024x1964) gets black bars and a slightly softer
+picture.
+
+**No frame cap is smoother.** The game caps the frame rate (`TargetFPS`, 90 on the Mac tested), and its menu has no
+setting for it. Unity's limiter waits for fixed time slots, so a frame that takes a little too long waits for the next one: at a
+120 cap on an M2 Pro, about 1 in 20 frames took 16.7 ms instead of 8.3 ms, a faint stutter. Without a cap, frames
+take as long as they need (95% under 10 ms in the same test). VSync has the same problem unless every frame stays
+under 8.3 ms.
+
+```sh
+defaults write com.TVGS.ScheduleI TargetFPS -int -1   # no cap
+defaults delete com.TVGS.ScheduleI TargetFPS          # the game's own setting
+```
+
 **Saves** are in `~/Library/Application Support/com.TVGS.ScheduleI/Saves`; Steam Cloud doesn't sync them. To
 continue a Windows save, copy its folder from `%USERPROFILE%\AppData\LocalLow\TVGS\Schedule I\Saves` on the PC.
 
